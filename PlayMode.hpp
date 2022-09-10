@@ -28,6 +28,16 @@ struct PlayMode : Mode {
 		SIX
 	} guesses;
 
+	enum Animation {
+		INACTIVE,
+		BREAD1,
+		BREAD2,
+		MEAT,
+		CHEESE,
+		LETTUCE,
+		TOMATO
+	} animation;
+
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
 
@@ -46,22 +56,23 @@ struct PlayMode : Mode {
 	bool cheese_pressed;
 	bool lettuce_pressed;
 	bool tomato_pressed;
-	uint8_t my_order_index;
 
-	// Transforms to center
-	glm::vec3 bread1_offset = glm::vec3(-7, -2.75, 0);
-	glm::vec3 bread2_offset = glm::vec3(-4, -2.75, 0);
-	glm::vec3 meat_offset = glm::vec3(-7, 0, -0.1);
-	glm::vec3 cheese_offset = glm::vec3(-4, 0, 0);
-	glm::vec3 lettuce_offset = glm::vec3(-7, 2.75, 0);
-	glm::vec3 tomato_offset = glm::vec3(-4, 2.75, 0);
-	glm::vec3 vertical_offset = glm::vec3(0, 0, 0.25);
+	// Original locations, for when they need to go back
+	glm::vec3 bread1_origin;
+	glm::vec3 bread2_origin;
+	glm::vec3 meat_origin;
+	glm::vec3 cheese_origin;
+	glm::vec3 lettuce_origin;
+	glm::vec3 tomato_origin;
+
+	glm::vec3 sandwich_destination = glm::vec3(-7, 0, 0);
+	float vertical_offset = 0.25;
 
 	// Game variables
 	std::vector<uint8_t> order;
 	std::vector<uint8_t> my_order;
+	uint8_t my_order_index;
 	bool end_game = false;
-	bool animation_active = false;
 	
 	//camera:
 	Scene::Camera *camera = nullptr;

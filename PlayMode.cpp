@@ -50,14 +50,17 @@ PlayMode::PlayMode() : scene(*sandwich_scene) {
 		else if (transform.name == "Tomato") tomato_transform = &transform;
 	}
 
-	lettuce_transform->position += lettuce_offset + 3.0f * vertical_offset;
-	tomato_transform->position += tomato_offset + 4.0f * vertical_offset;
-	cheese_transform->position += cheese_offset + 2.0f * vertical_offset;
-	bread1_transform->position += bread1_offset;
-	meat_transform->position += meat_offset + vertical_offset;
-	bread2_transform->position += bread2_offset + 5.0f * vertical_offset;
+	// Set initial positions
+	bread1_origin = bread1_transform->position; 
+	bread2_origin = bread2_transform->position;
+	meat_origin = meat_transform->position;
+	cheese_origin = cheese_transform->position;
+	lettuce_origin = lettuce_transform->position;
+	tomato_origin = tomato_transform->position;
 
+	// Zero out coordinates
 	guesses = Correct::NA;
+	animation = Animation::INACTIVE;
 
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
@@ -98,7 +101,7 @@ PlayMode::~PlayMode() {
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
-	if (end_game || animation_active) {
+	if (end_game || animation != Animation::INACTIVE) {
 		return false;
 	}
 	if (evt.type == SDL_KEYDOWN) {
@@ -107,6 +110,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				bread1_pressed = true;
 				my_order[my_order_index] = 1;
 				my_order_index++;
+				animation = Animation::BREAD1;
 				return true;
 			}
 		} else if (evt.key.keysym.sym == SDLK_2) {
@@ -114,6 +118,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				bread2_pressed = true;
 				my_order[my_order_index] = 2;
 				my_order_index++;
+				animation = Animation::BREAD2;
 				return true;
 			}
 		} else if (evt.key.keysym.sym == SDLK_3) {
@@ -121,6 +126,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				meat_pressed = true;
 				my_order[my_order_index] = 3;
 				my_order_index++;
+				animation = Animation::MEAT;
 				return true;
 			}
 		} else if (evt.key.keysym.sym == SDLK_4) {
@@ -128,6 +134,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				cheese_pressed = true;
 				my_order[my_order_index] = 4;
 				my_order_index++;
+				animation = Animation::CHEESE;
 				return true;
 			}
 		} else if (evt.key.keysym.sym == SDLK_5) {
@@ -135,6 +142,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				lettuce_pressed = true;
 				my_order[my_order_index] = 5;
 				my_order_index++;
+				animation = Animation::LETTUCE;
 				return true;
 			}
 		} else if (evt.key.keysym.sym == SDLK_6) {
@@ -142,6 +150,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				tomato_pressed = true;
 				my_order[my_order_index] = 6;
 				my_order_index++;
+				animation = Animation::TOMATO;
 				return true;
 			}
 		}
@@ -159,11 +168,17 @@ uint8_t compare_vectors(std::vector<uint8_t> first, std::vector<uint8_t> second)
 	return result;
 }
 
+// Just in case there are rounding errors
+bool vec3_equal(glm::vec3 first, glm::vec3 second) {
+	return abs(first.x - second.x) < 0.01 && abs(first.y - second.y) < 0.01 && abs(first.z - second.z) < 0.01;
+}
+
 void PlayMode::update(float elapsed) {
-	if (my_order_index == 6) {
+	if (my_order_index == 6 && animation == Animation::INACTIVE) {
 		uint8_t num_correct = compare_vectors(order, my_order);
 		printf("Me: %d %d %d %d %d %d\n", my_order[0], my_order[1], my_order[2], my_order[3], my_order[4], my_order[5]);
 		printf("%d correct\n", num_correct);
+		// Tell DrawLine how many are correct
 		if (num_correct == 0) {
 			guesses = Correct::ZERO;
 		} else if (num_correct == 1) {
@@ -176,25 +191,110 @@ void PlayMode::update(float elapsed) {
 			guesses = Correct::FOUR;
 		} else if (num_correct == 6) {
 			guesses = Correct::SIX;
+			// Stop everything
 			end_game = true;
 		}
+
+		// Reset all variables
 		my_order_index = 0;
+		my_order[0] = 0;
+		my_order[1] = 0;
+		my_order[2] = 0;
+		my_order[3] = 0;
+		my_order[4] = 0;
+		my_order[5] = 0;
+
 		bread1_pressed = false;
 		bread2_pressed = false;
 		meat_pressed = false;
 		cheese_pressed = false;
 		lettuce_pressed = false;
 		tomato_pressed = false;
+		
+		if (!end_game) {
+			bread1_transform->position = bread1_origin;
+			bread2_transform->position = bread2_origin;
+			meat_transform->position = meat_origin;
+			cheese_transform->position = cheese_origin;
+			lettuce_transform->position = lettuce_origin;
+			tomato_transform->position = tomato_origin;
+		}
 	}
-
-	//move camera:
-	{
-		glm::mat4x3 frame = camera->transform->make_local_to_parent();
-		glm::vec3 frame_right = frame[0];
-		//glm::vec3 up = frame[1];
-		glm::vec3 frame_forward = -frame[2];
-
-		camera->transform->position += glm::vec3(0.0f) * frame_right + glm::vec3(0.0f) * frame_forward;
+	
+	// A bit of math here. Basically my goal is that the animation takes about a second.
+	// So I take the difference between 0 and the offset and normalize so that the length is 1.
+	// Multiply that by elapsed to get distance traveled. If the difference between us and the
+	// destination is less, then go to the end.
+	float height = vertical_offset * float(my_order_index - 1);
+	glm::vec3 velocity;
+	float x_diff, y_diff, z_diff;
+	switch (animation) {
+	case INACTIVE:
+		break;
+	case BREAD1:
+		velocity = sandwich_destination - bread1_origin;
+		x_diff = std::max(sandwich_destination.x - bread1_transform->position.x, velocity.x * elapsed);
+		y_diff = std::max(sandwich_destination.y - bread1_transform->position.y, velocity.y * elapsed);
+		z_diff = std::min(height - bread1_transform->position.z, height * elapsed);
+		bread1_transform->position += glm::vec3(x_diff, y_diff, z_diff);
+		if (vec3_equal(bread1_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
+			printf("Bread1 finished.\n");
+			animation = Animation::INACTIVE;
+		}
+		break;
+	case BREAD2:
+		velocity = sandwich_destination - bread2_origin;
+		x_diff = std::max(sandwich_destination.x - bread2_transform->position.x, velocity.x * elapsed);
+		y_diff = std::max(sandwich_destination.y - bread2_transform->position.y, velocity.y * elapsed);
+		z_diff = std::min(height - bread2_transform->position.z, height * elapsed);
+		bread2_transform->position += glm::vec3(x_diff, y_diff, z_diff);
+		if (vec3_equal(bread2_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
+			printf("Bread2 finished.\n");
+			animation = Animation::INACTIVE;
+		}
+		break;
+	case MEAT:
+		velocity = sandwich_destination - meat_origin;
+		x_diff = std::max(sandwich_destination.x - meat_transform->position.x, velocity.x * elapsed);
+		z_diff = std::min(height - meat_transform->position.z, height * elapsed);
+		meat_transform->position += glm::vec3(x_diff, 0.0f, z_diff);
+		if (vec3_equal(meat_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
+			printf("Meat finished.\n");
+			animation = Animation::INACTIVE;
+		}
+		break;
+	case CHEESE:
+		velocity = sandwich_destination - cheese_origin;
+		x_diff = std::max(sandwich_destination.x - cheese_transform->position.x, velocity.x * elapsed);
+		z_diff = std::min(height - cheese_transform->position.z, height * elapsed);
+		cheese_transform->position += glm::vec3(x_diff, 0.0f, z_diff);
+		if (vec3_equal(cheese_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
+			printf("Cheese finished.\n");
+			animation = Animation::INACTIVE;
+		}
+		break;
+	case LETTUCE:
+		velocity = sandwich_destination - lettuce_origin;
+		x_diff = std::max(sandwich_destination.x - lettuce_transform->position.x, velocity.x * elapsed);
+		y_diff = std::min(sandwich_destination.y - lettuce_transform->position.y, velocity.y * elapsed);
+		z_diff = std::min(height - lettuce_transform->position.z, height * elapsed);
+		lettuce_transform->position += glm::vec3(x_diff, y_diff, z_diff);
+		if (vec3_equal(lettuce_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
+			printf("Lettuce finished.\n");
+			animation = Animation::INACTIVE;
+		}
+		break;
+	case TOMATO:
+		velocity = sandwich_destination - tomato_origin;
+		x_diff = std::max(sandwich_destination.x - tomato_transform->position.x, velocity.x * elapsed);
+		y_diff = std::min(sandwich_destination.y - tomato_transform->position.y, velocity.y * elapsed);
+		z_diff = std::min(height - tomato_transform->position.z, height * elapsed);
+		tomato_transform->position += glm::vec3(x_diff, y_diff, z_diff);
+		if (vec3_equal(tomato_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
+			printf("Tomato finished.\n");
+			animation = Animation::INACTIVE;
+		}
+		break;
 	}
 }
 
@@ -233,44 +333,44 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 		constexpr float H = 0.2f;
 		float offset = 50.0f / drawable_size.y;
 		switch (guesses) {
-			case NA:
-				break;
-			case ZERO:
-				lines.draw_text("Your guess had no ingredients correct.",
-					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
-					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-				break;
-			case ONE:
-				lines.draw_text("Your guess had 1 ingredient correct.",
-					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
-					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-				break;
-			case TWO:
-				lines.draw_text("Your guess had 2 ingredients correct.",
-					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
-					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-				break;
-			case THREE:
-				lines.draw_text("Your guess had 3 ingredients correct.",
-					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
-					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-				break;
-			case FOUR:
-				lines.draw_text("Your guess had 4 ingredients correct.",
-					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
-					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-				break;
-			case SIX:
-				lines.draw_text("You won! Congrats!",
-					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
-					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-				break;
+		case NA:
+			break;
+		case ZERO:
+			lines.draw_text("Your guess had no ingredients correct.",
+				glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+			break;
+		case ONE:
+			lines.draw_text("Your guess had 1 ingredient correct.",
+				glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+			break;
+		case TWO:
+			lines.draw_text("Your guess had 2 ingredients correct.",
+				glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+			break;
+		case THREE:
+			lines.draw_text("Your guess had 3 ingredients correct.",
+				glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+			break;
+		case FOUR:
+			lines.draw_text("Your guess had 4 ingredients correct.",
+				glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+			break;
+		case SIX:
+			lines.draw_text("You won! Congrats!",
+				glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+			break;
 		}
 	}
 }
