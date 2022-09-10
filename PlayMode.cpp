@@ -11,24 +11,26 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <random>
+#include <algorithm>
+#include <time.h>
 
-GLuint hexapod_meshes_for_lit_color_texture_program = 0;
-Load< MeshBuffer > hexapod_meshes(LoadTagDefault, []() -> MeshBuffer const * {
-	MeshBuffer const *ret = new MeshBuffer(data_path("hexapod.pnct"));
-	hexapod_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
+GLuint sandwich_meshes_for_lit_color_texture_program = 0;
+Load< MeshBuffer > sandwich_meshes(LoadTagDefault, []() -> MeshBuffer const * {
+	MeshBuffer const *ret = new MeshBuffer(data_path("sandwich.pnct"));
+	sandwich_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
 	return ret;
 });
 
-Load< Scene > hexapod_scene(LoadTagDefault, []() -> Scene const * {
-	return new Scene(data_path("hexapod.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name){
-		Mesh const &mesh = hexapod_meshes->lookup(mesh_name);
+Load< Scene > sandwich_scene(LoadTagDefault, []() -> Scene const * {
+	return new Scene(data_path("sandwich.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name){
+		Mesh const &mesh = sandwich_meshes->lookup(mesh_name);
 
 		scene.drawables.emplace_back(transform);
 		Scene::Drawable &drawable = scene.drawables.back();
 
 		drawable.pipeline = lit_color_texture_program_pipeline;
 
-		drawable.pipeline.vao = hexapod_meshes_for_lit_color_texture_program;
+		drawable.pipeline.vao = sandwich_meshes_for_lit_color_texture_program;
 		drawable.pipeline.type = mesh.type;
 		drawable.pipeline.start = mesh.start;
 		drawable.pipeline.count = mesh.count;
@@ -36,135 +38,164 @@ Load< Scene > hexapod_scene(LoadTagDefault, []() -> Scene const * {
 	});
 });
 
-PlayMode::PlayMode() : scene(*hexapod_scene) {
+PlayMode::PlayMode() : scene(*sandwich_scene) {
 	//get pointers to leg for convenience:
 	for (auto &transform : scene.transforms) {
-		if (transform.name == "Hip.FL") hip = &transform;
-		else if (transform.name == "UpperLeg.FL") upper_leg = &transform;
-		else if (transform.name == "LowerLeg.FL") lower_leg = &transform;
+		printf("%s\n", transform.name.c_str());
+		if (transform.name == "Bread1") bread1_transform = &transform;
+		else if (transform.name == "Bread2") bread2_transform = &transform;
+		else if (transform.name == "Meat") meat_transform = &transform;
+		else if (transform.name == "Cheese") cheese_transform = &transform;
+		else if (transform.name == "Lettuce") lettuce_transform = &transform;
+		else if (transform.name == "Tomato") tomato_transform = &transform;
 	}
-	if (hip == nullptr) throw std::runtime_error("Hip not found.");
-	if (upper_leg == nullptr) throw std::runtime_error("Upper leg not found.");
-	if (lower_leg == nullptr) throw std::runtime_error("Lower leg not found.");
 
-	hip_base_rotation = hip->rotation;
-	upper_leg_base_rotation = upper_leg->rotation;
-	lower_leg_base_rotation = lower_leg->rotation;
+	lettuce_transform->position += lettuce_offset + 3.0f * vertical_offset;
+	tomato_transform->position += tomato_offset + 4.0f * vertical_offset;
+	cheese_transform->position += cheese_offset + 2.0f * vertical_offset;
+	bread1_transform->position += bread1_offset;
+	meat_transform->position += meat_offset + vertical_offset;
+	bread2_transform->position += bread2_offset + 5.0f * vertical_offset;
+
+	guesses = Correct::NA;
 
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
+
+	// Randomize the order
+	srand((unsigned int)time(NULL));
+	order.push_back(1);
+	order.push_back(2);
+	order.push_back(3);
+	order.push_back(4);
+	order.push_back(5);
+	order.push_back(6);
+	// Shuffle from https://stackoverflow.com/questions/6926433/how-to-shuffle-a-stdvector
+	// Seed generation from my game1 code
+	srand((unsigned int)time(NULL));
+	unsigned seed = rand();
+	std::shuffle(order.begin(), order.end(), std::default_random_engine(seed));
+	printf("Game: %d %d %d %d %d %d\n", order[0], order[1], order[2], order[3], order[4], order[5]);
+
+	my_order.push_back(0);
+	my_order.push_back(0);
+	my_order.push_back(0);
+	my_order.push_back(0);
+	my_order.push_back(0);
+	my_order.push_back(0);
+	my_order_index = 0;
+
+	bread1_pressed = false;
+	bread2_pressed = false;
+	meat_pressed = false;
+	cheese_pressed = false;
+	lettuce_pressed = false;
+	tomato_pressed = false;
 }
 
 PlayMode::~PlayMode() {
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
-
+	if (end_game || animation_active) {
+		return false;
+	}
 	if (evt.type == SDL_KEYDOWN) {
-		if (evt.key.keysym.sym == SDLK_ESCAPE) {
-			SDL_SetRelativeMouseMode(SDL_FALSE);
-			return true;
-		} else if (evt.key.keysym.sym == SDLK_a) {
-			left.downs += 1;
-			left.pressed = true;
-			return true;
-		} else if (evt.key.keysym.sym == SDLK_d) {
-			right.downs += 1;
-			right.pressed = true;
-			return true;
-		} else if (evt.key.keysym.sym == SDLK_w) {
-			up.downs += 1;
-			up.pressed = true;
-			return true;
-		} else if (evt.key.keysym.sym == SDLK_s) {
-			down.downs += 1;
-			down.pressed = true;
-			return true;
-		}
-	} else if (evt.type == SDL_KEYUP) {
-		if (evt.key.keysym.sym == SDLK_a) {
-			left.pressed = false;
-			return true;
-		} else if (evt.key.keysym.sym == SDLK_d) {
-			right.pressed = false;
-			return true;
-		} else if (evt.key.keysym.sym == SDLK_w) {
-			up.pressed = false;
-			return true;
-		} else if (evt.key.keysym.sym == SDLK_s) {
-			down.pressed = false;
-			return true;
-		}
-	} else if (evt.type == SDL_MOUSEBUTTONDOWN) {
-		if (SDL_GetRelativeMouseMode() == SDL_FALSE) {
-			SDL_SetRelativeMouseMode(SDL_TRUE);
-			return true;
-		}
-	} else if (evt.type == SDL_MOUSEMOTION) {
-		if (SDL_GetRelativeMouseMode() == SDL_TRUE) {
-			glm::vec2 motion = glm::vec2(
-				evt.motion.xrel / float(window_size.y),
-				-evt.motion.yrel / float(window_size.y)
-			);
-			camera->transform->rotation = glm::normalize(
-				camera->transform->rotation
-				* glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f))
-				* glm::angleAxis(motion.y * camera->fovy, glm::vec3(1.0f, 0.0f, 0.0f))
-			);
-			return true;
+		if (evt.key.keysym.sym == SDLK_1) {
+			if (!bread1_pressed) {
+				bread1_pressed = true;
+				my_order[my_order_index] = 1;
+				my_order_index++;
+				return true;
+			}
+		} else if (evt.key.keysym.sym == SDLK_2) {
+			if (!bread2_pressed) {
+				bread2_pressed = true;
+				my_order[my_order_index] = 2;
+				my_order_index++;
+				return true;
+			}
+		} else if (evt.key.keysym.sym == SDLK_3) {
+			if (!meat_pressed) {
+				meat_pressed = true;
+				my_order[my_order_index] = 3;
+				my_order_index++;
+				return true;
+			}
+		} else if (evt.key.keysym.sym == SDLK_4) {
+			if (!cheese_pressed) {
+				cheese_pressed = true;
+				my_order[my_order_index] = 4;
+				my_order_index++;
+				return true;
+			}
+		} else if (evt.key.keysym.sym == SDLK_5) {
+			if (!lettuce_pressed) {
+				lettuce_pressed = true;
+				my_order[my_order_index] = 5;
+				my_order_index++;
+				return true;
+			}
+		} else if (evt.key.keysym.sym == SDLK_6) {
+			if (!tomato_pressed) {
+				tomato_pressed = true;
+				my_order[my_order_index] = 6;
+				my_order_index++;
+				return true;
+			}
 		}
 	}
-
 	return false;
 }
 
+uint8_t compare_vectors(std::vector<uint8_t> first, std::vector<uint8_t> second) {
+	uint8_t result = 0;
+	for (uint8_t i = 0; i < 6; i++) {
+		if (first[i] == second[i]) {
+			result++;
+		}
+	}
+	return result;
+}
+
 void PlayMode::update(float elapsed) {
-
-	//slowly rotates through [0,1):
-	wobble += elapsed / 10.0f;
-	wobble -= std::floor(wobble);
-
-	hip->rotation = hip_base_rotation * glm::angleAxis(
-		glm::radians(5.0f * std::sin(wobble * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 1.0f, 0.0f)
-	);
-	upper_leg->rotation = upper_leg_base_rotation * glm::angleAxis(
-		glm::radians(7.0f * std::sin(wobble * 2.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
-	lower_leg->rotation = lower_leg_base_rotation * glm::angleAxis(
-		glm::radians(10.0f * std::sin(wobble * 3.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
+	if (my_order_index == 6) {
+		uint8_t num_correct = compare_vectors(order, my_order);
+		printf("Me: %d %d %d %d %d %d\n", my_order[0], my_order[1], my_order[2], my_order[3], my_order[4], my_order[5]);
+		printf("%d correct\n", num_correct);
+		if (num_correct == 0) {
+			guesses = Correct::ZERO;
+		} else if (num_correct == 1) {
+			guesses = Correct::ONE;
+		} else if (num_correct == 2) {
+			guesses = Correct::TWO;
+		} else if (num_correct == 3) {
+			guesses = Correct::THREE;
+		} else if (num_correct == 4) {
+			guesses = Correct::FOUR;
+		} else if (num_correct == 6) {
+			guesses = Correct::SIX;
+			end_game = true;
+		}
+		my_order_index = 0;
+		bread1_pressed = false;
+		bread2_pressed = false;
+		meat_pressed = false;
+		cheese_pressed = false;
+		lettuce_pressed = false;
+		tomato_pressed = false;
+	}
 
 	//move camera:
 	{
-
-		//combine inputs into a move:
-		constexpr float PlayerSpeed = 30.0f;
-		glm::vec2 move = glm::vec2(0.0f);
-		if (left.pressed && !right.pressed) move.x =-1.0f;
-		if (!left.pressed && right.pressed) move.x = 1.0f;
-		if (down.pressed && !up.pressed) move.y =-1.0f;
-		if (!down.pressed && up.pressed) move.y = 1.0f;
-
-		//make it so that moving diagonally doesn't go faster:
-		if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
-
 		glm::mat4x3 frame = camera->transform->make_local_to_parent();
 		glm::vec3 frame_right = frame[0];
 		//glm::vec3 up = frame[1];
 		glm::vec3 frame_forward = -frame[2];
 
-		camera->transform->position += move.x * frame_right + move.y * frame_forward;
+		camera->transform->position += glm::vec3(0.0f) * frame_right + glm::vec3(0.0f) * frame_forward;
 	}
-
-	//reset button press counters:
-	left.downs = 0;
-	right.downs = 0;
-	up.downs = 0;
-	down.downs = 0;
 }
 
 void PlayMode::draw(glm::uvec2 const &drawable_size) {
@@ -172,7 +203,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 	camera->aspect = float(drawable_size.x) / float(drawable_size.y);
 
 	//set up light type and position for lit_color_texture_program:
-	// TODO: consider using the Light(s) in the scene to do this
 	glUseProgram(lit_color_texture_program->program);
 	glUniform1i(lit_color_texture_program->LIGHT_TYPE_int, 1);
 	glUniform3fv(lit_color_texture_program->LIGHT_DIRECTION_vec3, 1, glm::value_ptr(glm::vec3(0.0f, 0.0f,-1.0f)));
@@ -190,7 +220,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 
 	scene.draw(*camera);
 
-	{ //use DrawLines to overlay some text:
+	{ //use DrawLines to overlay some text (from starter code with text modified):
 		glDisable(GL_DEPTH_TEST);
 		float aspect = float(drawable_size.x) / float(drawable_size.y);
 		DrawLines lines(glm::mat4(
@@ -200,15 +230,47 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 			0.0f, 0.0f, 0.0f, 1.0f
 		));
 
-		constexpr float H = 0.09f;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
-		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+		constexpr float H = 0.2f;
+		float offset = 50.0f / drawable_size.y;
+		switch (guesses) {
+			case NA:
+				break;
+			case ZERO:
+				lines.draw_text("Your guess had no ingredients correct.",
+					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+				break;
+			case ONE:
+				lines.draw_text("Your guess had 1 ingredient correct.",
+					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+				break;
+			case TWO:
+				lines.draw_text("Your guess had 2 ingredients correct.",
+					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+				break;
+			case THREE:
+				lines.draw_text("Your guess had 3 ingredients correct.",
+					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+				break;
+			case FOUR:
+				lines.draw_text("Your guess had 4 ingredients correct.",
+					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+				break;
+			case SIX:
+				lines.draw_text("You won! Congrats!",
+					glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
+					glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+					glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+				break;
+		}
 	}
 }

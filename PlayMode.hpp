@@ -18,23 +18,50 @@ struct PlayMode : Mode {
 
 	//----- game state -----
 
-	//input tracking:
-	struct Button {
-		uint8_t downs = 0;
-		uint8_t pressed = 0;
-	} left, right, down, up;
+	enum Correct {
+		NA,
+		ZERO,
+		ONE,
+		TWO,
+		THREE,
+		FOUR, // No FIVE, mathematically impossible
+		SIX
+	} guesses;
 
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
 
-	//hexapod leg to wobble:
-	Scene::Transform *hip = nullptr;
-	Scene::Transform *upper_leg = nullptr;
-	Scene::Transform *lower_leg = nullptr;
-	glm::quat hip_base_rotation;
-	glm::quat upper_leg_base_rotation;
-	glm::quat lower_leg_base_rotation;
-	float wobble = 0.0f;
+	// sandwich transforms:
+	Scene::Transform *bread1_transform = nullptr;
+	Scene::Transform *bread2_transform = nullptr;
+	Scene::Transform *meat_transform = nullptr;
+	Scene::Transform *cheese_transform = nullptr;
+	Scene::Transform *lettuce_transform = nullptr;
+	Scene::Transform *tomato_transform = nullptr;
+
+	// Sandwich booleans
+	bool bread1_pressed;
+	bool bread2_pressed;
+	bool meat_pressed;
+	bool cheese_pressed;
+	bool lettuce_pressed;
+	bool tomato_pressed;
+	uint8_t my_order_index;
+
+	// Transforms to center
+	glm::vec3 bread1_offset = glm::vec3(-7, -2.75, 0);
+	glm::vec3 bread2_offset = glm::vec3(-4, -2.75, 0);
+	glm::vec3 meat_offset = glm::vec3(-7, 0, -0.1);
+	glm::vec3 cheese_offset = glm::vec3(-4, 0, 0);
+	glm::vec3 lettuce_offset = glm::vec3(-7, 2.75, 0);
+	glm::vec3 tomato_offset = glm::vec3(-4, 2.75, 0);
+	glm::vec3 vertical_offset = glm::vec3(0, 0, 0.25);
+
+	// Game variables
+	std::vector<uint8_t> order;
+	std::vector<uint8_t> my_order;
+	bool end_game = false;
+	bool animation_active = false;
 	
 	//camera:
 	Scene::Camera *camera = nullptr;
