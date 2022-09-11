@@ -12,8 +12,10 @@
 
 #include <random>
 #include <algorithm>
+#include <string>
 #include <time.h>
 
+// Based on starter code
 GLuint sandwich_meshes_for_lit_color_texture_program = 0;
 Load< MeshBuffer > sandwich_meshes(LoadTagDefault, []() -> MeshBuffer const * {
 	MeshBuffer const *ret = new MeshBuffer(data_path("sandwich.pnct"));
@@ -39,9 +41,8 @@ Load< Scene > sandwich_scene(LoadTagDefault, []() -> Scene const * {
 });
 
 PlayMode::PlayMode() : scene(*sandwich_scene) {
-	//get pointers to leg for convenience:
+	// Pointers to the main transforms
 	for (auto &transform : scene.transforms) {
-		printf("%s\n", transform.name.c_str());
 		if (transform.name == "Bread1") bread1_transform = &transform;
 		else if (transform.name == "Bread2") bread2_transform = &transform;
 		else if (transform.name == "Meat") meat_transform = &transform;
@@ -58,16 +59,15 @@ PlayMode::PlayMode() : scene(*sandwich_scene) {
 	lettuce_origin = lettuce_transform->position;
 	tomato_origin = tomato_transform->position;
 
-	// Zero out coordinates
+	// Set enums to their default
 	guesses = Correct::NA;
 	animation = Animation::INACTIVE;
 
-	//get pointer to camera for convenience:
+	// Get pointer to camera
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
 
 	// Randomize the order
-	srand((unsigned int)time(NULL));
 	order.push_back(1);
 	order.push_back(2);
 	order.push_back(3);
@@ -79,8 +79,10 @@ PlayMode::PlayMode() : scene(*sandwich_scene) {
 	srand((unsigned int)time(NULL));
 	unsigned seed = rand();
 	std::shuffle(order.begin(), order.end(), std::default_random_engine(seed));
-	printf("Game: %d %d %d %d %d %d\n", order[0], order[1], order[2], order[3], order[4], order[5]);
+	// printf("Game: %d %d %d %d %d %d\n", order[0], order[1], order[2], order[3], order[4], order[5]);
+	// Enable this print if you'd like to have the option to give up.
 
+	// Initialize our guess vector to be size 6
 	my_order.push_back(0);
 	my_order.push_back(0);
 	my_order.push_back(0);
@@ -89,6 +91,7 @@ PlayMode::PlayMode() : scene(*sandwich_scene) {
 	my_order.push_back(0);
 	my_order_index = 0;
 
+	// Nothing has been selected
 	bread1_pressed = false;
 	bread2_pressed = false;
 	meat_pressed = false;
@@ -101,9 +104,11 @@ PlayMode::~PlayMode() {
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
+	// Ignore key presses if animation is going or if the game is over
 	if (end_game || animation != Animation::INACTIVE) {
 		return false;
 	}
+	// When an ingredient is chosen, advance the index and begin the animation
 	if (evt.type == SDL_KEYDOWN) {
 		if (evt.key.keysym.sym == SDLK_1) {
 			if (!bread1_pressed) {
@@ -158,6 +163,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 	return false;
 }
 
+// Find out how many guesses were correct
 uint8_t compare_vectors(std::vector<uint8_t> first, std::vector<uint8_t> second) {
 	uint8_t result = 0;
 	for (uint8_t i = 0; i < 6; i++) {
@@ -175,9 +181,8 @@ bool vec3_equal(glm::vec3 first, glm::vec3 second) {
 
 void PlayMode::update(float elapsed) {
 	if (my_order_index == 6 && animation == Animation::INACTIVE) {
+		total_guesses++;
 		uint8_t num_correct = compare_vectors(order, my_order);
-		printf("Me: %d %d %d %d %d %d\n", my_order[0], my_order[1], my_order[2], my_order[3], my_order[4], my_order[5]);
-		printf("%d correct\n", num_correct);
 		// Tell DrawLine how many are correct
 		if (num_correct == 0) {
 			guesses = Correct::ZERO;
@@ -212,6 +217,7 @@ void PlayMode::update(float elapsed) {
 		tomato_pressed = false;
 		
 		if (!end_game) {
+			// Don't move the sandwich ingredients back if the game is over
 			bread1_transform->position = bread1_origin;
 			bread2_transform->position = bread2_origin;
 			meat_transform->position = meat_origin;
@@ -222,9 +228,10 @@ void PlayMode::update(float elapsed) {
 	}
 	
 	// A bit of math here. Basically my goal is that the animation takes about a second.
-	// So I take the difference between 0 and the offset and normalize so that the length is 1.
+	// So I take the difference between the origin and destination and call that the velocity.
 	// Multiply that by elapsed to get distance traveled. If the difference between us and the
 	// destination is less, then go to the end.
+	// Figure out the z offset based on which index we are.
 	float height = vertical_offset * float(my_order_index - 1);
 	glm::vec3 velocity;
 	float x_diff, y_diff, z_diff;
@@ -238,7 +245,6 @@ void PlayMode::update(float elapsed) {
 		z_diff = std::min(height - bread1_transform->position.z, height * elapsed);
 		bread1_transform->position += glm::vec3(x_diff, y_diff, z_diff);
 		if (vec3_equal(bread1_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
-			printf("Bread1 finished.\n");
 			animation = Animation::INACTIVE;
 		}
 		break;
@@ -249,7 +255,6 @@ void PlayMode::update(float elapsed) {
 		z_diff = std::min(height - bread2_transform->position.z, height * elapsed);
 		bread2_transform->position += glm::vec3(x_diff, y_diff, z_diff);
 		if (vec3_equal(bread2_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
-			printf("Bread2 finished.\n");
 			animation = Animation::INACTIVE;
 		}
 		break;
@@ -259,7 +264,6 @@ void PlayMode::update(float elapsed) {
 		z_diff = std::min(height - meat_transform->position.z, height * elapsed);
 		meat_transform->position += glm::vec3(x_diff, 0.0f, z_diff);
 		if (vec3_equal(meat_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
-			printf("Meat finished.\n");
 			animation = Animation::INACTIVE;
 		}
 		break;
@@ -269,7 +273,6 @@ void PlayMode::update(float elapsed) {
 		z_diff = std::min(height - cheese_transform->position.z, height * elapsed);
 		cheese_transform->position += glm::vec3(x_diff, 0.0f, z_diff);
 		if (vec3_equal(cheese_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
-			printf("Cheese finished.\n");
 			animation = Animation::INACTIVE;
 		}
 		break;
@@ -280,7 +283,6 @@ void PlayMode::update(float elapsed) {
 		z_diff = std::min(height - lettuce_transform->position.z, height * elapsed);
 		lettuce_transform->position += glm::vec3(x_diff, y_diff, z_diff);
 		if (vec3_equal(lettuce_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
-			printf("Lettuce finished.\n");
 			animation = Animation::INACTIVE;
 		}
 		break;
@@ -291,7 +293,6 @@ void PlayMode::update(float elapsed) {
 		z_diff = std::min(height - tomato_transform->position.z, height * elapsed);
 		tomato_transform->position += glm::vec3(x_diff, y_diff, z_diff);
 		if (vec3_equal(tomato_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
-			printf("Tomato finished.\n");
 			animation = Animation::INACTIVE;
 		}
 		break;
@@ -366,7 +367,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
 			break;
 		case SIX:
-			lines.draw_text("You won! Congrats!",
+			lines.draw_text("You won! Congrats! " + std::to_string(total_guesses) + " guesses.",
 				glm::vec3(-aspect + 0.1f * H + offset, -1.0 + + 0.1f * H + offset, 0.0),
 				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 				glm::u8vec4(0xff, 0xff, 0xff, 0x00));

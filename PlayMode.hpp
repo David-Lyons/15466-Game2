@@ -38,10 +38,10 @@ struct PlayMode : Mode {
 		TOMATO
 	} animation;
 
-	//local copy of the game scene (so code can change it during gameplay):
+	// Local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
 
-	// sandwich transforms:
+	// Sandwich transforms:
 	Scene::Transform *bread1_transform = nullptr;
 	Scene::Transform *bread2_transform = nullptr;
 	Scene::Transform *meat_transform = nullptr;
@@ -65,7 +65,7 @@ struct PlayMode : Mode {
 	glm::vec3 lettuce_origin;
 	glm::vec3 tomato_origin;
 
-	glm::vec3 sandwich_destination = glm::vec3(-7, 0, 0);
+	glm::vec3 sandwich_destination = glm::vec3(-6, 0, 0);
 	float vertical_offset = 0.25;
 
 	// Game variables
@@ -73,6 +73,7 @@ struct PlayMode : Mode {
 	std::vector<uint8_t> my_order;
 	uint8_t my_order_index;
 	bool end_game = false;
+	uint32_t total_guesses = 0;
 	
 	//camera:
 	Scene::Camera *camera = nullptr;
