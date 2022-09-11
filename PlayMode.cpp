@@ -169,6 +169,8 @@ uint8_t compare_vectors(std::vector<uint8_t> first, std::vector<uint8_t> second)
 	for (uint8_t i = 0; i < 6; i++) {
 		if (first[i] == second[i]) {
 			result++;
+		} else if ((first[i] == 1 && second[i] == 2) || (first[i] == 2 && second[i] == 1)) {
+			result++;
 		}
 	}
 	return result;
@@ -242,7 +244,7 @@ void PlayMode::update(float elapsed) {
 		velocity = sandwich_destination - bread1_origin;
 		x_diff = std::max(sandwich_destination.x - bread1_transform->position.x, velocity.x * elapsed);
 		y_diff = std::max(sandwich_destination.y - bread1_transform->position.y, velocity.y * elapsed);
-		z_diff = std::min(height - bread1_transform->position.z, height * elapsed);
+		z_diff = std::min(height - bread1_transform->position.z, 2.0f * height * elapsed);
 		bread1_transform->position += glm::vec3(x_diff, y_diff, z_diff);
 		if (vec3_equal(bread1_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
 			animation = Animation::INACTIVE;
@@ -252,7 +254,7 @@ void PlayMode::update(float elapsed) {
 		velocity = sandwich_destination - bread2_origin;
 		x_diff = std::max(sandwich_destination.x - bread2_transform->position.x, velocity.x * elapsed);
 		y_diff = std::max(sandwich_destination.y - bread2_transform->position.y, velocity.y * elapsed);
-		z_diff = std::min(height - bread2_transform->position.z, height * elapsed);
+		z_diff = std::min(height - bread2_transform->position.z, 2.0f * height * elapsed);
 		bread2_transform->position += glm::vec3(x_diff, y_diff, z_diff);
 		if (vec3_equal(bread2_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
 			animation = Animation::INACTIVE;
@@ -261,7 +263,7 @@ void PlayMode::update(float elapsed) {
 	case MEAT:
 		velocity = sandwich_destination - meat_origin;
 		x_diff = std::max(sandwich_destination.x - meat_transform->position.x, velocity.x * elapsed);
-		z_diff = std::min(height - meat_transform->position.z, height * elapsed);
+		z_diff = std::min(height - meat_transform->position.z, 2.0f * height * elapsed);
 		meat_transform->position += glm::vec3(x_diff, 0.0f, z_diff);
 		if (vec3_equal(meat_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
 			animation = Animation::INACTIVE;
@@ -270,7 +272,7 @@ void PlayMode::update(float elapsed) {
 	case CHEESE:
 		velocity = sandwich_destination - cheese_origin;
 		x_diff = std::max(sandwich_destination.x - cheese_transform->position.x, velocity.x * elapsed);
-		z_diff = std::min(height - cheese_transform->position.z, height * elapsed);
+		z_diff = std::min(height - cheese_transform->position.z, 2.0f * height * elapsed);
 		cheese_transform->position += glm::vec3(x_diff, 0.0f, z_diff);
 		if (vec3_equal(cheese_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
 			animation = Animation::INACTIVE;
@@ -280,7 +282,7 @@ void PlayMode::update(float elapsed) {
 		velocity = sandwich_destination - lettuce_origin;
 		x_diff = std::max(sandwich_destination.x - lettuce_transform->position.x, velocity.x * elapsed);
 		y_diff = std::min(sandwich_destination.y - lettuce_transform->position.y, velocity.y * elapsed);
-		z_diff = std::min(height - lettuce_transform->position.z, height * elapsed);
+		z_diff = std::min(height - lettuce_transform->position.z, 2.0f * height * elapsed);
 		lettuce_transform->position += glm::vec3(x_diff, y_diff, z_diff);
 		if (vec3_equal(lettuce_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
 			animation = Animation::INACTIVE;
@@ -290,7 +292,7 @@ void PlayMode::update(float elapsed) {
 		velocity = sandwich_destination - tomato_origin;
 		x_diff = std::max(sandwich_destination.x - tomato_transform->position.x, velocity.x * elapsed);
 		y_diff = std::min(sandwich_destination.y - tomato_transform->position.y, velocity.y * elapsed);
-		z_diff = std::min(height - tomato_transform->position.z, height * elapsed);
+		z_diff = std::min(height - tomato_transform->position.z, 2.0f * height * elapsed);
 		tomato_transform->position += glm::vec3(x_diff, y_diff, z_diff);
 		if (vec3_equal(tomato_transform->position, sandwich_destination + glm::vec3(0.0f, 0.0f, height))) {
 			animation = Animation::INACTIVE;
